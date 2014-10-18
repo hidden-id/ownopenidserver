@@ -4,10 +4,15 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="">
-    <meta name="author" content="">
+    <meta name="description" content="{{profile.nickname}}'s HiddenID server">
+    <meta name="author" content="https://hidden-id.github.io">
     <link rel="icon" href="/static/img/HiddenID-icon.png">
-
+    {{#endpoint}}
+      <link rel="openid.server" href="{{.}}">
+    {{/endpoint}}
+    {{#yadis}}
+      <meta http-equiv="x-xrds-location" content="{{.}}">
+    {{/yadis}}
     <title>{{title}} - {{profile.nickname}}'s HiddenID</title>
 
     <!-- Bootstrap core CSS -->

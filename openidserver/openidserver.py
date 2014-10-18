@@ -631,16 +631,15 @@ class WebOpenIDDecision(WebHandler):
                     response = request.decline()
 
             else:
-                data = filter(
-                        lambda item: item[0] not in [
-                                'approve', 'always',
-                                'logged_in', 'logout'
-                            ],
-                        self.query.items())
+                data = [
+                    {'key':pair[0],'value':pair[1]}
+                    for pair in self.query.items()
+                    if pair[0] not in [
+                        'approve', 'always', 'logged_in', 'logout', 'csrf_token'
+                    ]
+                ]
 
                 sreg_request = sreg.SRegRequest.fromOpenIDRequest(request.request)
-
-                profile = None
 
                 logout_form = WebOpenIDLogoutForm()
                 logout_form.fill({'logout': self.query.get('logged_in', False)})
@@ -660,7 +659,6 @@ class WebOpenIDDecision(WebHandler):
                         decision_url=publichomedomain() + web.url('/account/decision'),
                         identity=request.request.identity,
                         trust_root=request.request.trust_root,
-                        profile=profile,
                         logout_form=logout_form,
                         query=data,
                     )
