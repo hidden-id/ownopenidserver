@@ -9,15 +9,11 @@ setup(
         url='http://ownopenidserver.com/',
         version='1.0',
         packages=['openidserver'],
-        install_requires = ['python-openid', 'web.py', 'flup', 'html5lib', 'Jinja2'],
+        install_requires = ['python-openid', 'web.py', 'flup', 'pystache'],
         package_data = {
             'openidserver': [
-                        'templates/base.html',
-                        'templates/login.html',
-                        'templates/verify.html',
-                        'templates/password.html',
-                        'templates/trusted.html',
-                        'templates/trusted_confirm.html',
+                        'templates',
+                        'static'
                     ],
             },
 )

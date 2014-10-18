@@ -16,15 +16,12 @@ application provides two basic services.
 - [python-openid][] for sure
 - [web.py][] provides lihgtweight HTTP and CGI inteface and web framework
 - [flup][] provides FastCGI interface for web.py
-- [Jinja2][] is used as a HTML templating library for management interface
-- [html5lib][] is a helper library to parse hCard microformat of your homepage.
-
+- [Pystache][] is used for mustache html template rendering
 
 [python-openid]: http://pypi.python.org/pypi/python-openid/
 [web.py]: http://webpy.org/
 [flup]: http://www.saddi.com/software/flup/
-[Jinja2]: http://jinja.pocoo.org/docs/
-[html5lib]: http://code.google.com/p/html5lib/
+[Pystache]: https://pypi.python.org/pypi/pystache
 
 Initial setup
 --------------
@@ -67,7 +64,7 @@ the bottom. There is a number of settings there:
 - `ROOT_STORE`: directory name with all your settings. Path is relative to
   application's current working directory and points to `sstore` directory by
   default
-- `TEMPLATES` is the directory where Jinja2 HTML templates reside
+- `TEMPLATES` is the directory where mustache HTML templates reside
   ('templates' by default)
 - `TRUST_ROOT_STORE`, `SESSION_STORE` and `PASSWORD_STORE` are three variables
   which points to different subdirectories in `ROOT_STORE`.  Providing that

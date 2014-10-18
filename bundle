@@ -26,9 +26,8 @@ tar:
 		$(TARGET_TAR)/$(NAME)/COPYING.gz \
 		/usr/share/pyshared/web \
 		/usr/share/pyshared/openid \
-		/usr/share/pyshared/jinja2 \
-		/usr/share/pyshared/flup \
-		/usr/share/pyshared/html5lib
+		/usr/share/pyshared/pystache \
+		/usr/share/pyshared/flup
 	install $(TARGET_TAR)/$(NAME)/openidserver/openidserver.py $(TARGET_TAR)/$(CGIDIR)/$(CGISCRIPT)
 	rm -rf $(TARGET_TAR)/$(NAME)
 	find $(TARGET_TAR)/$(CGIDIR) -type d -exec touch '{}/__init__.py' \;
