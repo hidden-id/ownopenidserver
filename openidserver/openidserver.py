@@ -640,8 +640,6 @@ class WebOpenIDDecision(WebHandler):
 
                 sreg_request = sreg.SRegRequest.fromOpenIDRequest(request.request)
 
-                profile = None
-
                 logout_form = WebOpenIDLogoutForm()
                 logout_form.fill({'logout': self.query.get('logged_in', False)})
 
@@ -660,7 +658,6 @@ class WebOpenIDDecision(WebHandler):
                         decision_url=publichomedomain() + web.url('/account/decision'),
                         identity=request.request.identity,
                         trust_root=request.request.trust_root,
-                        profile=profile,
                         logout_form=logout_form,
                         query=data,
                     )
