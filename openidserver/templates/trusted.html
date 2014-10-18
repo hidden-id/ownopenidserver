@@ -1,15 +1,22 @@
-{% extends 'base.html' %}
+{{> header}}
+{{#removed}}
+  <div class="alert alert-success" role="alert">
+    Successfully removed trust from site.
+  </div>
+{{/removed}}
 
-{% block title %}Trusted{% endblock %}
+<h2>Trusted sites</h2>
+<ul class="list-group">
+  {{#trusted}}
+    <li class="list-group-item">
+        <a class="btn btn-xs btn-danger" title="Remove trust"
+          href="{{check_trusted_url}}/{{id}}/delete"><span class="glyphicon glyphicon-remove"></span></a>
+      {{name}}
+    </li>
+  {{/trusted}}
+</ul>
+  {{^trusted}}
+    <p>You trust no one :)<p>
+  {{/trusted}}
 
-{% block content %}{% if removed==True %}
-			<p class="message">Removed.</p>{% endif %}
-			
-			<h2>Trusted</h2>{% if trusted %}
-
-			<ul id="trusted">{% for name, remove_url  in trusted %}
-				<li><tt>{{ name }}</tt> <a href="{{ remove_url }}">delete</a></li>{% endfor %}
-			</ul>{% else %}
-
-			<p>Empty.</p>{% endif %}
-{% endblock %}
+{{> footer}}

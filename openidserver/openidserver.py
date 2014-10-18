@@ -6,7 +6,9 @@ import urllib
 import sys
 import hashlib, random
 
-import web, web.http, web.form, web.session, web.contrib.template
+import pystache, json
+
+import web, web.http, web.form, web.session
 
 import openid.server.server, openid.store.filestore, openid.fetchers
 try:
@@ -14,7 +16,35 @@ try:
 except ImportError:
     from openid import sreg
     
-import html5lib
+def login_required(f):
+    def decorated(*args,**kwargs):
+        if not session.logged_in:
+            return WebOpenIDLoginRequired(args[0].query)
+        return f(*args,**kwargs)
+    return decorated
+
+def csrf_token():
+    if not session.has_key('csrf_token'):
+        from uuid import uuid4
+        session.csrf_token=uuid4().hex
+    return session.csrf_token
+
+def csrf_protected(f):
+    def decorated(*args,**kwargs):
+        try:
+            meth = args[0].method
+        except:
+            meth = None
+        if meth == 'POST':
+            inp = web.input()
+            if not (inp.has_key('csrf_token') and inp.csrf_token==session.pop('csrf_token',None)):
+                raise web.HTTPError(
+                    "400 Bad request",
+                    {'content-type':'text/html'},
+                    'Cross-site request forgery (CSRF) attempt (or stale browser form).'
+                    '<a href="">Back to the form</a>.')
+        return f(*args,**kwargs)
+    return decorated
 
 def publichomedomain():
     """
@@ -23,118 +53,10 @@ def publichomedomain():
     """
     return '{0}://{1}'.format(web.ctx.protocol,web.ctx.env['HTTP_HOST'])
 
-class HCardParser(html5lib.HTMLParser):
-    # based on code
-    # from ~isagalaev/scipio/trunk : /utils/__init__.py (revision 38)
-    # Ivan Sagalaev, maniac@softwaremaniacs.org, 2010-05-05 19:12:52
-
-    class HCard(object):
-        
-        def __init__(self, tree):
-            self.tree = tree
-            
-        def __getitem__(self, key):
-            if key in dir(self):
-                attr = self.__getattribute__(key)
-                if callable(attr):
-                    return attr()
-                else:
-                    return attr
-            else:
-                return self._parse_property(key)
-	get = __getitem__
-            
-        def _parse_property(self, class_name):
-            result = list()
-            for el in HCardParser.getElementsByClassName(self.tree, class_name):
-                if el.name == 'abbr' and 'title' in el.attributes:
-                    result.append(el.attributes['title'].strip())
-                else:
-                    result.extend((s.value.strip() for s in el if s.type == 4))
-            return u''.join(result).replace(u'\n', u' ')
-
-        def profile(self, required, optional=[]):
-            TRANSLATION = {
-                    'fullname': { '__name__': 'Full name' },
-                    'dob': { '__name__': 'Date of Birth' },
-                    'gender': { 'M': 'Male', 'F': 'Female' },
-                    'postcode': { '__name__': 'Postal code' },
-                }
-                
-            def item(field, value):
-                translation = TRANSLATION.get(field, {})
-                title = translation.get('__name__', field.title())
-                if value:
-                    value = translation.get(value, value)
-                return (title, value)
-            
-            profile = list()
-            for field in required:
-                profile.append(item(field, self[field]))
-            for field in optional:
-                if self[field]:
-                    profile.append(item(field, self[field]))
-            return profile
-
-
-        def gender(self):
-            TITLES = {
-                    'mr': 'M',
-                    'ms': 'F',
-                    'mrs': 'F', 
-                }
-            return \
-                self._parse_property('x-gender') or \
-                self._parse_property('gender') or \
-                TITLES.get(self._parse_property('honorific-prefix'), None)
-
-        def dob(self):
-            bday = self._parse_property('bday')
-            if bday:
-                return bday[:10]
-            else:
-                return None
-                
-        def nickname(self):
-            return \
-                self._parse_property('nickname') or \
-                self._parse_property('fn')
-                    
-        def fullname(self):
-            return self['fn']
-            
-        def postcode(self):
-            return self['postal-code']
-        
-        def country(self):
-            return self['country-name']
-            
-        def timezone(self):
-            return self['tz']
-                
-    @classmethod
-    def getElementsByClassName(cls, node, class_name):
-        nodes = list()
-        for child in (c for c in node if c.type == 5):
-            if class_name in child.attributes.get('class', '').split():
-                nodes.append(child)
-        return nodes
-
-    def parse_url(self, url):
-        document = openid.fetchers.fetch(url)
-        charset = document.headers.get('charset', 'utf-8').replace("'", '')
-        return self.parse(document.body.decode(charset, 'ignore'))
-
-    def parse(self, *args, **kwargs):
-        tree = super(HCardParser, self).parse(*args, **kwargs)
-        return (HCardParser.HCard(node) for node in HCardParser.getElementsByClassName(tree, 'vcard'))
-        
-
 class TrustRootStore(object):
     """
     Store and lookup over trust root list
     """
-
 
     def __init__(self, directory):
         self.directory = directory
@@ -263,17 +185,6 @@ class OpenIDResponse(object):
                 allow=True,
                 identity=identity
             )
-
-        try:
-            hcards = HCardParser().parse_url(identity)
-            if hcards:
-                sreg_data = hcards.next()
-                sreg_request = sreg.SRegRequest.fromOpenIDRequest(self.request)
-                sreg_response = sreg.SRegResponse.extractResponse(sreg_request, sreg_data)
-                response.addExtension(sreg_response)
-        except:
-            pass
-            #TODO: fixme
 
         return self._encode_response(response)
 
@@ -434,8 +345,13 @@ class WebOpenIDIndex(WebHandler):
 
     def request(self):
         web.header('Content-type', 'text/html')
-        return render.base(
+        return stache.render_name('home',
+                title='Profile',
+                is_home=True,
+                profile=profile,
+                csrf_token=csrf_token(),
                 logged_in=session.logged_in,
+                hiddenid=publichomedomain() + web.url('/'),
                 login_url=publichomedomain() + web.url('/account/login'),
                 logout_url=publichomedomain() + web.url('/account/logout'),
                 change_password_url=publichomedomain() + web.url('/account/change_password'),
@@ -462,11 +378,13 @@ def WebOpenIDLoginForm(validator):
 
 class WebOpenIDLogin(WebHandler):
 
-
+    @csrf_protected
     def request(self):
-        return_to = self.query.get('return_to', publichomedomain() + web.url('/account'))
+        return_to = self.query.get('return_to', publichomedomain() + web.url('/'))
+        if session.logged_in:
+            return web.found(return_to)
 
-        data = filter(lambda item: item[0] not in ['password'], self.query.items())
+        data = filter(lambda item: item[0] not in ['password','csrf_token'], self.query.items())
 
         form = WebOpenIDLoginForm(password_manager)()
 
@@ -486,23 +404,31 @@ class WebOpenIDLogin(WebHandler):
                 return web.found(return_to + '?' + web.http.urlencode(dict(data)))
 
         web.header('Content-type', 'text/html')
-        return render.login(
+        return stache.render_name('login',
+                title='Login',
+                is_login=True,
+                profile=profile,
+                csrf_token=csrf_token(),
                 logged_in=session.logged_in,
-                login_url=publichomedomain() + web.url('/account/login'),
+                hiddenid=publichomedomain() + web.url('/'),
+                login_url=publichomedomain() + web.url('/account/login')+'?'+web.http.urlencode(
+                    {'return_to':return_to}),
                 logout_url=publichomedomain() + web.url('/account/logout'),
                 change_password_url=publichomedomain() + web.url('/account/change_password'),
                 no_password=session.get('no_password', False),
-                form=form,
-                query=data,
+                check_trusted_url=publichomedomain() + web.url('/account/trusted'),
+                form_render=form.render().replace('<table>','').replace('</table>',''),
             )
 
 
 class WebOpenIDLogout(WebHandler):
 
-
+    @csrf_protected
     def request(self):
-        session.logout()
-        return web.found(publichomedomain() + web.url('/account/login'))
+        if self.method=='POST':
+            session.logout()
+            return web.found(publichomedomain() + web.url('/'))
+        return web.found(publichomedomain() + web.url('/'))
 
 
 WebOpenIDChangePasswordForm = web.form.Form(
@@ -524,10 +450,9 @@ WebOpenIDChangePasswordForm = web.form.Form(
 class WebOpenIDChangePassword(WebHandler):
 
 
+    @login_required
+    @csrf_protected
     def request(self):
-        # check for login
-        if not session.logged_in:
-            return WebOpenIDLoginRequired(self.query)
 
         form = WebOpenIDChangePasswordForm()
 
@@ -537,42 +462,49 @@ class WebOpenIDChangePassword(WebHandler):
 
                 session['no_password'] = False
 
-                return web.found(publichomedomain() + web.url('/account'))
+                return web.found(publichomedomain() + web.url('/'))
 
         web.header('Content-type', 'text/html')
-        return render.password(
+        return stache.render_name('password',
+                title='Change password',
+                is_password=True,
+                profile=profile,
+                csrf_token=csrf_token(),
                 logged_in=session.logged_in,
+                hiddenid=publichomedomain() + web.url('/'),
+                login_url=publichomedomain() + web.url('/account/login'),
                 logout_url=publichomedomain() + web.url('/account/logout'),
                 change_password_url=publichomedomain() + web.url('/account/change_password'),
+                check_trusted_url=publichomedomain() + web.url('/account/trusted'),
                 no_password=session.get('no_password', False),
-                form=form,
+                form_render=form.render().replace('<table>','').replace('</table>',''),
             )
 
 
 class WebOpenIDTrusted(WebHandler):
 
-
+    @login_required
     def request(self):
-        # check for login
-        if not session.logged_in:
-            return WebOpenIDLoginRequired(self.query)
-
         items = [
-                ((
-                    item[1],
-                    publichomedomain() + web.url('/account/trusted/%s/delete' % item[0])
-                ))
-                for item in trust_root_store.items()
-            ]
+            {'id':item[0],'name':item[1]}
+            for item in trust_root_store.items()
+        ]
 
         removed = session.get('trusted_removed_successful', False)
         session['trusted_removed_successful'] = False
 
         web.header('Content-type', 'text/html')
-        return render.trusted(
+        return stache.render_name('trusted',
+                title='Trusted sites',
+                is_trusted=True,
+                profile=profile,
+                csrf_token=csrf_token(),
                 logged_in=session.logged_in,
+                hiddenid=publichomedomain() + web.url('/'),
+                login_url=publichomedomain() + web.url('/account/login'),
                 logout_url=publichomedomain() + web.url('/account/logout'),
                 change_password_url=publichomedomain() + web.url('/account/change_password'),
+                check_trusted_url=publichomedomain() + web.url('/account/trusted'),
                 no_password=session.get('no_password', False),
                 trusted=items,
                 removed=removed,
@@ -582,10 +514,9 @@ class WebOpenIDTrusted(WebHandler):
 class WebOpenIDTrustedDelete(WebHandler):
 
 
+    @login_required
+    @csrf_protected
     def request(self, trusted_id):
-        # check for login
-        if not session.logged_in:
-            return WebOpenIDLoginRequired(self.query)
 
         try:
             trust_root = dict(trust_root_store.items())[trusted_id]
@@ -600,12 +531,16 @@ class WebOpenIDTrustedDelete(WebHandler):
                 return web.found(publichomedomain() + web.url('/account/trusted'))
 
         web.header('Content-type', 'text/html')
-        return render.trusted_confirm(
+        return stache.render_name('trusted_confirm',
+                title='Confirm trust removal',
+                profile=profile,
+                csrf_token=csrf_token(),
                 logged_in=session.logged_in,
+                hiddenid=publichomedomain() + web.url('/'),
+                login_url=publichomedomain() + web.url('/account/login'),
                 logout_url=publichomedomain() + web.url('/account/logout'),
                 change_password_url=publichomedomain() + web.url('/account/change_password'),
                 check_trusted_url=publichomedomain() + web.url('/account/trusted'),
-                trusted_remove_url=publichomedomain() + web.url('/account/trusted/%s/delete' % trusted_id),
                 no_password=session.get('no_password', False),
                 trust_root=trust_root,
             )
@@ -640,7 +575,6 @@ class WebOpenIDEndpoint(WebHandler):
 
 
     def request(self):
-        # check for login
         request = server.request(publichomedomain() + web.url('/endpoint'), self.query)
         try:
             response = request.process(session.logged_in)
@@ -671,10 +605,9 @@ WebOpenIDLogoutForm = web.form.Form(
 class WebOpenIDDecision(WebHandler):
 
 
+    @login_required
+    @csrf_protected
     def request(self):
-        # check for login
-        if not session.logged_in:
-            return WebOpenIDLoginRequired(self.query)
 
         request = server.request(publichomedomain() + web.url('/endpoint'), self.query)
 
@@ -708,23 +641,21 @@ class WebOpenIDDecision(WebHandler):
                 sreg_request = sreg.SRegRequest.fromOpenIDRequest(request.request)
 
                 profile = None
-                if sreg_request.required or sreg_request.optional:
-                    try:
-			hcards = HCardParser().parse_url(request.request.identity)
-			if hcards:
-			    hcard = hcards.next()
-			    profile = hcard.profile(sreg_request.required, sreg_request.optional)
-                    except:
-                        pass
 
                 logout_form = WebOpenIDLogoutForm()
                 logout_form.fill({'logout': self.query.get('logged_in', False)})
 
                 web.header('Content-type', 'text/html')
-                return render.verify(
+                return stache.render_name('verify',
+                        title='Verification request',
+                        profile=profile,
+                        csrf_token=csrf_token(),
                         logged_in=session.logged_in,
+                        hiddenid=publichomedomain() + web.url('/'),
+                        login_url=publichomedomain() + web.url('/account/login'),
                         logout_url=publichomedomain() + web.url('/account/logout'),
                         change_password_url=publichomedomain() + web.url('/account/change_password'),
+                        check_trusted_url=publichomedomain() + web.url('/account/trusted'),
                         no_password=session.get('no_password', False),
                         decision_url=publichomedomain() + web.url('/account/decision'),
                         identity=request.request.identity,
@@ -779,8 +710,21 @@ def init(
     password_manager = PasswordManager(password_store_path)
     context['password_manager'] = password_manager
 
-    render = web.contrib.template.render_jinja(templates_path)
-    context['render'] = render
+    stache = pystache.Renderer(search_dirs=templates_path,
+        file_encoding='utf-8', string_encoding='utf-8', file_extension='html')
+    context['stache'] = stache
+
+    profile_filename = os.path.join(root_store_path,'profile.json')
+    if os.path.exists(profile_filename):
+        profile = json.load(file(profile_filename))
+    else:
+        profile = {
+            "nickname": "A. Nonymous",
+            "description": "Someone who didn't edit sstore/profile.json [yet?] ;)",
+            "homepage":""
+        }
+        json.dump(profile,file(profile_filename,"w"),indent=4)
+    context['profile'] = profile
 
     web.config.debug = debug
 

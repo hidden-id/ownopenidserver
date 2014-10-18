@@ -1,0 +1,28 @@
+        {{> header}}
+          <h1>HiddenID profile: <small>{{profile.nickname}}</small></h1>
+          <dl>
+            <dt>HiddenID:</dt>
+            <dd>
+              <form class="form-horizontal">
+                <div class="form-group">
+                  <label for="#my_id" class="col-sm-2 control-label">Copy URL</label>
+                  <div class="col-sm-10">
+                    <input id="my_id" type="text" readonly
+                           class="form-control" onclick="this.select()"
+                           value="{{hiddenid}}">
+                  </div>
+                </div>
+              </form>
+            </dd>
+            {{#profile.description}}
+              <dt>About {{profile.nickname}}:</dt>
+              <dd>{{.}}</dd>
+            {{/profile.description}}
+            {{#profile.homepage}}
+              <dt>Homepage:</dt>
+              <dd><a target="_blank" href="{{profile.homepage}}">{{profile.homepage}}</a></dd>
+            {{/profile.homepage}}
+          </dl>
+          <p><a class="btn btn-primary btn-lg" role="button" target="_blank"
+                href="https://hidden-id.github.io">Learn more about HiddenID &raquo;</a></p>
+        {{> footer}}
