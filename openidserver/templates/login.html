@@ -3,6 +3,9 @@
 
 <form class="form" id="login" method="post" action="{{ login_url }}">
   <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+  {{#query}}
+    <input type="hidden" name="{{key}}" value="{{value}}">
+  {{/query}}
   <table class="table table-hover">
 {{{ form_render }}}
     <tr>

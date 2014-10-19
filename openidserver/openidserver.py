@@ -384,8 +384,16 @@ class WebOpenIDLogin(WebHandler):
         if session.logged_in:
             return web.found(return_to)
 
-        data = filter(lambda item: item[0] not in ['password','csrf_token'], self.query.items())
-
+        data = [
+            {'key':pair[0],'value':pair[1]}
+            for pair in self.query.items()
+            if pair[0]!='password'
+        ]
+        return_to_query = dict([
+            (item['key'],item['value'])
+            for item in data
+            if not item['key'] in ['csrf_token','return_to']
+        ])
         form = WebOpenIDLoginForm(password_manager)()
 
         session['no_password'] = False
@@ -395,13 +403,13 @@ class WebOpenIDLogin(WebHandler):
                 if form.validates(self.query):
                     session.login()
                     data.append(('logged_in', True))
-                    return web.found(return_to + '?' + web.http.urlencode(dict(data)))
+                    return web.found(return_to + '?' + web.http.urlencode(return_to_query))
 
             except PasswordManager.NoPassword:
                 session['no_password'] = True
                 session.login()
                 data.append(('logged_in', True))
-                return web.found(return_to + '?' + web.http.urlencode(dict(data)))
+                return web.found(return_to + '?' + web.http.urlencode(return_to_query))
 
         web.header('Content-type', 'text/html')
         return stache.render_name('login',
@@ -418,6 +426,7 @@ class WebOpenIDLogin(WebHandler):
                 no_password=session.get('no_password', False),
                 check_trusted_url=publichomedomain() + web.url('/account/trusted'),
                 form_render=form.render().replace('<table>','').replace('</table>',''),
+                query=data
             )
 
 
