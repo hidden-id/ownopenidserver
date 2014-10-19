@@ -80,6 +80,7 @@
 
     <div class="container">
     {{#no_password}}
+      {{^is_password}}
         <div class="row">
           <div class="col-md-12">
             <div class="alert alert-danger" role="alert">
@@ -87,6 +88,7 @@
             </div>
           </div>
         </div>
+      {{/is_password}}
     {{/no_password}}
       <div class="row">
         <div class="col-md-8 col-md-offset-2 col-sm-12">
