@@ -728,7 +728,8 @@ def init(
         profile = {
             "nickname": "A. Nonymous",
             "description": "Someone who didn't edit sstore/profile.json [yet?] ;)",
-            "homepage":""
+            "homepage":"",
+            "avatar":"/static/img/default-avatar.png"
         }
         json.dump(profile,file(profile_filename,"w"),indent=4)
     context['profile'] = profile
